@@ -1,30 +1,33 @@
 import streamlit as st
-from database import save_encrypted_file
+from database import save_encrypted
+import pandas as pd
+import os
 
 def admin_dashboard():
     st.title("Admin Panel")
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["Users Upload", "Price Upload", "Campaigns", "Audit Logs"]
-    )
+    tabs = st.tabs(["Users","Price","Campaigns","Logs"])
 
-    with tab1:
-        file = st.file_uploader("Upload Users CSV")
+    with tabs[0]:
+        file = st.file_uploader("Upload Users")
         if file:
-            save_encrypted_file(file)
-            st.success("Users uploaded & encrypted")
+            save_encrypted(file,"users")
+            st.success("Users uploaded")
 
-    with tab2:
-        file = st.file_uploader("Upload Price List")
+    with tabs[1]:
+        file = st.file_uploader("Upload Price")
         if file:
-            save_encrypted_file(file)
+            save_encrypted(file,"price")
             st.success("Price uploaded")
 
-    with tab3:
+    with tabs[2]:
         file = st.file_uploader("Upload Campaign")
         if file:
-            save_encrypted_file(file)
+            save_encrypted(file,"campaign")
             st.success("Campaign uploaded")
 
-    with tab4:
-        st.write("Logs coming soon...")
+    with tabs[3]:
+        if os.path.exists("logs/audit_log.csv"):
+            df = pd.read_csv("logs/audit_log.csv")
+            st.dataframe(df.tail(10))
+            st.download_button("Download Logs", df.to_csv(index=False))
