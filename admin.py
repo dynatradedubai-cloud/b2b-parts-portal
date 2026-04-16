@@ -26,7 +26,24 @@ def admin_dashboard():
                 st.success(msg)
             else:
                 st.error(msg)
+df = load_encrypted_file("users")
 
+if df is not None:
+    st.dataframe(df)
+
+    user_to_block = st.selectbox("Select User", df["Username"])
+
+    if st.button("Block User"):
+        df.loc[df["Username"] == user_to_block, "Blocked"] = True
+        df.to_excel("temp.xlsx", index=False)
+        save_encrypted_file(open("temp.xlsx", "rb"), "users")
+        st.success("User blocked")
+
+    if st.button("Unblock User"):
+        df.loc[df["Username"] == user_to_block, "Blocked"] = False
+        df.to_excel("temp.xlsx", index=False)
+        save_encrypted_file(open("temp.xlsx", "rb"), "users")
+        st.success("User unblocked")
     # =============================
     # PRICE
     # =============================
