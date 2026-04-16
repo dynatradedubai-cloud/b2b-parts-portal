@@ -1,115 +1,129 @@
 import streamlit as st
-import pandas as pd
 import os
+import pandas as pd
 from database import save_encrypted_file, load_encrypted_file
 
+
+# =============================
+# HEADER (SAME STYLE AS CUSTOMER)
+# =============================
+def render_header():
+
+    col1, col2 = st.columns([1, 5])
+
+    with col1:
+        if os.path.exists("dynatrade_logo.png"):
+            st.image("dynatrade_logo.png", width=90)
+
+    with col2:
+        st.markdown("### Dynatrade Admin Panel")
+
+    st.markdown("---")
+
+
+# =============================
+# CARD WRAPPER
+# =============================
+def card(title):
+    st.markdown(f"### {title}")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+
+
+# =============================
+# ADMIN DASHBOARD
+# =============================
 def admin_dashboard():
 
-    st.title("🔐 Dynatrade Admin Panel")
+    render_header()
 
     tab1, tab2, tab3, tab4 = st.tabs([
         "👤 Users",
         "📦 Price List",
         "📢 Campaigns",
-        "📊 Audit Logs"
+        "📊 Logs"
     ])
 
     # =============================
-    # USERS TAB
+    # USERS
     # =============================
     with tab1:
 
-        st.subheader("Upload Users File")
+        card("Upload Users File")
 
-        file = st.file_uploader("Upload Users Excel", type=["xlsx"], key="users")
+        file = st.file_uploader("Upload Users Excel", type=["xlsx"])
 
-        if file is not None:
+        if file:
             ok, msg = save_encrypted_file(file, "users")
             if ok:
                 st.success(msg)
-                st.cache_data.clear()
             else:
                 st.error(msg)
+            st.cache_data.clear()
 
         df = load_encrypted_file("users")
 
         if df is not None:
             st.dataframe(df)
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # =============================
-    # PRICE TAB
+    # PRICE
     # =============================
     with tab2:
 
-        st.subheader("Upload Price List")
+        card("Upload Price List")
 
-        file = st.file_uploader("Upload Price Excel", type=["xlsx"], key="price")
+        file = st.file_uploader("Upload Price Excel", type=["xlsx"])
 
-        if file is not None:
+        if file:
             ok, msg = save_encrypted_file(file, "price")
             if ok:
                 st.success(msg)
-                st.cache_data.clear()
             else:
                 st.error(msg)
+            st.cache_data.clear()
 
         df = load_encrypted_file("price")
 
         if df is not None:
             st.dataframe(df.head(50))
 
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # =============================
-    # CAMPAIGNS TAB
+    # CAMPAIGNS
     # =============================
     with tab3:
 
-        st.subheader("Upload Campaign Files")
+        card("Upload Campaigns")
 
-        file = st.file_uploader("Upload Campaign", type=["pdf", "png", "jpg", "xlsx"], key="campaign")
+        file = st.file_uploader("Upload Campaign File")
 
-        if file is not None:
+        if file:
             os.makedirs("data", exist_ok=True)
-            path = os.path.join("data", f"campaign_{file.name}")
+            path = f"data/{file.name}"
 
             with open(path, "wb") as f:
                 f.write(file.read())
 
-            st.success("Campaign uploaded successfully")
+            st.success("Uploaded successfully")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # =============================
-    # AUDIT LOGS TAB
+    # LOGS
     # =============================
     with tab4:
 
-        st.subheader("Audit Logs")
+        card("System Logs")
 
         log_file = "logs/audit_log.csv"
 
-        # If file does not exist
-        if not os.path.exists(log_file):
-            st.info("No logs available yet")
-            return
-
-        # If file exists but empty
-        if os.path.getsize(log_file) == 0:
-            st.info("Logs file is empty")
-            return
-
-        try:
+        if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
             df = pd.read_csv(log_file)
+            st.dataframe(df.tail(20))
+        else:
+            st.info("No logs yet")
 
-            if df.empty:
-                st.info("No logs recorded yet")
-                return
-
-            st.dataframe(df.tail(10))
-
-            st.download_button(
-                "Download Logs",
-                df.to_csv(index=False),
-                file_name="audit_logs.csv"
-            )
-
-        except Exception as e:
-            st.error(f"Error loading logs: {str(e)}")
-
+        st.markdown('</div>', unsafe_allow_html=True)
