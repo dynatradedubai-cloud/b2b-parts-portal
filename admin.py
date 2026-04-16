@@ -1,42 +1,66 @@
-import streamlit as st
-import pandas as pd
 import os
-from database import save_encrypted_file, load_encrypted_file
+import pandas as pd
+from cryptography.fernet import Fernet
 
-def admin_dashboard():
-    st.title("Admin Panel")
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Users", "Price", "Campaign", "Logs"
-    ])
+KEY_FILE = "data/secret.key"
 
-    with tab1:
-        file = st.file_uploader("Upload Users", type=["xlsx"])
-        if file:
-            ok, msg = save_encrypted_file(file, "users")
-            st.success(msg if ok else msg)
+# -----------------------------
+# Load or create encryption key
+# -----------------------------
+def load_key():
+    if not os.path.exists(KEY_FILE):
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as f:
+            f.write(key)
+    else:
+        with open(KEY_FILE, "rb") as f:
+            key = f.read()
 
-        df = load_encrypted_file("users")
-        if df is not None:
-            st.dataframe(df)
+    return Fernet(key)
 
-    with tab2:
-        file = st.file_uploader("Upload Price", type=["xlsx"])
-        if file:
-            ok, msg = save_encrypted_file(file, "price")
-            st.success(msg if ok else msg)
+fernet = load_key()
 
-        df = load_encrypted_file("price")
-        if df is not None:
-            st.dataframe(df.head(20))
+# -----------------------------
+# SAVE encrypted file
+# -----------------------------
+def save_encrypted_file(uploaded_file, name):
+    try:
+        raw = uploaded_file.read()
+        encrypted = fernet.encrypt(raw)
 
-    with tab3:
-        file = st.file_uploader("Upload Campaign")
-        if file:
-            os.makedirs("data", exist_ok=True)
-            with open(f"data/{file.name}", "wb") as f:
-                f.write(file.read())
-            st.success("Uploaded")
+        path = f"{DATA_DIR}/{name}.enc"
+        with open(path, "wb") as f:
+            f.write(encrypted)
 
-    with tab4:
-        st.write("Logs will appear here")
+        return True, f"{name} file uploaded & encrypted"
+
+    except Exception as e:
+        return False, f"Encrypt failed: {str(e)}"
+
+# -----------------------------
+# LOAD encrypted file
+# -----------------------------
+def load_encrypted_file(name):
+    try:
+        path = f"{DATA_DIR}/{name}.enc"
+
+        if not os.path.exists(path):
+            return None
+
+        with open(path, "rb") as f:
+            encrypted = f.read()
+
+        decrypted = fernet.decrypt(encrypted)
+
+        # Convert decrypted bytes → DataFrame
+        df = pd.read_excel(decrypted)
+
+        return df
+
+    except Exception as e:
+        print("Decrypt failed:", e)
+        return None
+
