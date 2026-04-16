@@ -3,16 +3,12 @@ from auth import login_flow
 from admin import admin_dashboard
 from customer import customer_dashboard
 from security import auto_logout, update_activity
+from ui import apply_ui
 
 st.set_page_config(page_title="Dynatrade Portal", layout="wide")
 
-# Hide Streamlit menu
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+# ✅ APPLY UI
+apply_ui()
 
 # Session init
 if "authenticated" not in st.session_state:
