@@ -26,24 +26,12 @@ def admin_dashboard():
                 st.success(msg)
             else:
                 st.error(msg)
-df = load_encrypted_file("users")
 
-if df is not None:
-    st.dataframe(df)
+        df = load_encrypted_file("users")
 
-    user_to_block = st.selectbox("Select User", df["Username"])
+        if df is not None:
+            st.dataframe(df)
 
-    if st.button("Block User"):
-        df.loc[df["Username"] == user_to_block, "Blocked"] = True
-        df.to_excel("temp.xlsx", index=False)
-        save_encrypted_file(open("temp.xlsx", "rb"), "users")
-        st.success("User blocked")
-
-    if st.button("Unblock User"):
-        df.loc[df["Username"] == user_to_block, "Blocked"] = False
-        df.to_excel("temp.xlsx", index=False)
-        save_encrypted_file(open("temp.xlsx", "rb"), "users")
-        st.success("User unblocked")
     # =============================
     # PRICE
     # =============================
@@ -57,6 +45,11 @@ if df is not None:
                 st.success(msg)
             else:
                 st.error(msg)
+
+        df = load_encrypted_file("price")
+
+        if df is not None:
+            st.dataframe(df.head(50))
 
     # =============================
     # CAMPAIGNS
@@ -80,7 +73,6 @@ if df is not None:
 
         if os.path.exists(log_file):
             df = pd.read_csv(log_file)
-
             st.dataframe(df.tail(10))
 
             st.download_button(
