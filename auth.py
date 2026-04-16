@@ -14,7 +14,7 @@ OTP_EXPIRY = 300
 
 
 # =============================
-# SEND OTP (SAFE)
+# SEND OTP
 # =============================
 def send_otp(email, otp):
     try:
@@ -57,7 +57,7 @@ def login_flow(is_admin):
             return
 
         # =============================
-        # ADMIN LOGIN
+        # ADMIN LOGIN (KEEP SECURE)
         # =============================
         if is_admin:
             try:
@@ -90,7 +90,7 @@ def login_flow(is_admin):
             st.rerun()
 
         # =============================
-        # CUSTOMER LOGIN
+        # CUSTOMER LOGIN (PLAIN TEXT)
         # =============================
         users = load_encrypted_file("users")
 
@@ -104,13 +104,16 @@ def login_flow(is_admin):
             st.error("User not found")
             return
 
-        stored_hash = row.iloc[0]["Password"]
+        stored_password = str(row.iloc[0]["Password"]).strip()
 
-        if not bcrypt.checkpw(pwd.encode(), stored_hash.encode()):
+        # 🔥 SIMPLE PASSWORD CHECK (NO BCRYPT)
+        if pwd != stored_password:
             st.error("Invalid password")
             return
 
-        # OTP
+        # =============================
+        # OTP PROCESS
+        # =============================
         otp = str(random.randint(100000, 999999))
 
         st.session_state.otp_hash = bcrypt.hashpw(otp.encode(), bcrypt.gensalt())
