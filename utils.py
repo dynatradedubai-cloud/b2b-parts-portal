@@ -16,3 +16,20 @@ def get_ip():
         return socket.gethostbyname(socket.gethostname())
     except:
         return "unknown"
+LANG = {
+    "en": {
+        "search": "Search Parts",
+        "cart": "Cart",
+        "no_results": "No results found",
+    },
+    "ar": {
+        "search": "بحث عن القطع",
+        "cart": "سلة المشتريات",
+        "no_results": "لا توجد نتائج",
+    }
+}
+
+def t(key):
+    import streamlit as st
+    lang = st.session_state.get("lang", "en")
+    return LANG[lang].get(key, key)
