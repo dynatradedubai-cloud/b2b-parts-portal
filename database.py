@@ -52,26 +52,49 @@ def save_encrypted_file(uploaded_file, file_type):
 # LOAD FILE (FIXED DEBUG)
 # =============================
 
+import pandas as pd
+import streamlit as st
+from cryptography.fernet import Fernet
+import os
+from io import BytesIO
+
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def get_fernet():
+    return Fernet(st.secrets["ENCRYPTION_KEY"].encode())
+
+
+def get_path(file_type):
+    return os.path.join(DATA_DIR, f"{file_type}.enc")
+
+
 @st.cache_data
 def load_encrypted_file(file_type):
 
     path = get_path(file_type)
 
-    # 🔴 DEBUG IMPORTANT
+    # ✅ STEP 1 — FILE NOT EXISTS
     if not os.path.exists(path):
-        st.error(f"Missing file: {path}")
+        return None
+
+    # ✅ STEP 2 — EMPTY FILE
+    if os.path.getsize(path) == 0:
         return None
 
     try:
         with open(path, "rb") as f:
             encrypted = f.read()
 
+        # ✅ STEP 3 — DECRYPT
         decrypted = get_fernet().decrypt(encrypted)
 
         df = pd.read_excel(BytesIO(decrypted))
 
         return df
 
-    except Exception as e:
-        st.error(f"Decrypt failed: {str(e)}")
+    except Exception:
+        # 🔴 DO NOT SHOW ERROR TO USER HERE
+        # Just return None safely
         return None
