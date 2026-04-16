@@ -1,66 +1,113 @@
-import os
+import streamlit as st
 import pandas as pd
-from cryptography.fernet import Fernet
+import os
+from database import save_encrypted_file, load_encrypted_file
 
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+def admin_dashboard():
 
-KEY_FILE = "data/secret.key"
+    st.title("🔐 Dynatrade Admin Panel")
 
-# -----------------------------
-# Load or create encryption key
-# -----------------------------
-def load_key():
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, "wb") as f:
-            f.write(key)
-    else:
-        with open(KEY_FILE, "rb") as f:
-            key = f.read()
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👤 Users",
+        "📦 Price List",
+        "📢 Campaigns",
+        "📊 Audit Logs"
+    ])
 
-    return Fernet(key)
+    # =============================
+    # USERS TAB
+    # =============================
+    with tab1:
 
-fernet = load_key()
+        st.subheader("Upload Users File")
 
-# -----------------------------
-# SAVE encrypted file
-# -----------------------------
-def save_encrypted_file(uploaded_file, name):
-    try:
-        raw = uploaded_file.read()
-        encrypted = fernet.encrypt(raw)
+        file = st.file_uploader("Upload Users Excel", type=["xlsx"], key="users")
 
-        path = f"{DATA_DIR}/{name}.enc"
-        with open(path, "wb") as f:
-            f.write(encrypted)
+        if file is not None:
+            ok, msg = save_encrypted_file(file, "users")
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
 
-        return True, f"{name} file uploaded & encrypted"
+        df = load_encrypted_file("users")
 
-    except Exception as e:
-        return False, f"Encrypt failed: {str(e)}"
+        if df is not None:
+            st.dataframe(df)
 
-# -----------------------------
-# LOAD encrypted file
-# -----------------------------
-def load_encrypted_file(name):
-    try:
-        path = f"{DATA_DIR}/{name}.enc"
+    # =============================
+    # PRICE TAB
+    # =============================
+    with tab2:
 
-        if not os.path.exists(path):
-            return None
+        st.subheader("Upload Price List")
 
-        with open(path, "rb") as f:
-            encrypted = f.read()
+        file = st.file_uploader("Upload Price Excel", type=["xlsx"], key="price")
 
-        decrypted = fernet.decrypt(encrypted)
+        if file is not None:
+            ok, msg = save_encrypted_file(file, "price")
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
 
-        # Convert decrypted bytes → DataFrame
-        df = pd.read_excel(decrypted)
+        df = load_encrypted_file("price")
 
-        return df
+        if df is not None:
+            st.dataframe(df.head(50))
 
-    except Exception as e:
-        print("Decrypt failed:", e)
-        return None
+    # =============================
+    # CAMPAIGNS TAB
+    # =============================
+    with tab3:
+
+        st.subheader("Upload Campaign Files")
+
+        file = st.file_uploader("Upload Campaign", type=["pdf", "png", "jpg", "xlsx"], key="campaign")
+
+        if file is not None:
+            os.makedirs("data", exist_ok=True)
+            path = os.path.join("data", f"campaign_{file.name}")
+
+            with open(path, "wb") as f:
+                f.write(file.read())
+
+            st.success("Campaign uploaded successfully")
+
+    # =============================
+    # AUDIT LOGS TAB
+    # =============================
+    with tab4:
+
+        st.subheader("Audit Logs")
+
+        log_file = "logs/audit_log.csv"
+
+        # If file does not exist
+        if not os.path.exists(log_file):
+            st.info("No logs available yet")
+            return
+
+        # If file exists but empty
+        if os.path.getsize(log_file) == 0:
+            st.info("Logs file is empty")
+            return
+
+        try:
+            df = pd.read_csv(log_file)
+
+            if df.empty:
+                st.info("No logs recorded yet")
+                return
+
+            st.dataframe(df.tail(10))
+
+            st.download_button(
+                "Download Logs",
+                df.to_csv(index=False),
+                file_name="audit_logs.csv"
+            )
+
+        except Exception as e:
+            st.error(f"Error loading logs: {str(e)}")
 
