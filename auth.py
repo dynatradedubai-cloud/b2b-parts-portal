@@ -14,25 +14,35 @@ OTP_EXPIRY = 300
 
 
 # =============================
-# SEND OTP
+# SEND OTP (SAFE)
 # =============================
-
 def send_otp(email, otp):
-    msg = MIMEText(f"Your OTP is: {otp}")
-    msg['Subject'] = "Dynatrade OTP"
-    msg['From'] = st.secrets["SENDER_EMAIL"]
-    msg['To'] = email
+    try:
+        sender = st.secrets["SENDER_EMAIL"]
+        password = st.secrets["SENDER_APP_PASSWORD"]
+        server = st.secrets["SMTP_SERVER"]
+        port = int(st.secrets["SMTP_PORT"])
+    except Exception:
+        st.error("Email configuration missing in secrets")
+        return
 
-    with smtplib.SMTP(st.secrets["SMTP_SERVER"], int(st.secrets["SMTP_PORT"])) as s:
-        s.starttls()
-        s.login(st.secrets["SENDER_EMAIL"], st.secrets["SENDER_APP_PASSWORD"])
-        s.send_message(msg)
+    msg = MIMEText(f"Your OTP is: {otp}")
+    msg["Subject"] = "Dynatrade OTP"
+    msg["From"] = sender
+    msg["To"] = email
+
+    try:
+        with smtplib.SMTP(server, port) as s:
+            s.starttls()
+            s.login(sender, password)
+            s.send_message(msg)
+    except Exception as e:
+        st.error(f"Failed to send OTP: {str(e)}")
 
 
 # =============================
 # LOGIN FLOW
 # =============================
-
 def login_flow(is_admin):
 
     st.title("Dynatrade Automotive LLC")
@@ -49,7 +59,6 @@ def login_flow(is_admin):
         # =============================
         # ADMIN LOGIN
         # =============================
-
         if is_admin:
             try:
                 admin_user = st.secrets["ADMIN_EMAIL"]
@@ -65,7 +74,7 @@ def login_flow(is_admin):
             try:
                 valid = bcrypt.checkpw(pwd.encode(), admin_hash.encode())
             except Exception:
-                st.error("Invalid bcrypt hash in secrets")
+                st.error("Invalid password format")
                 return
 
             if not valid:
@@ -78,34 +87,27 @@ def login_flow(is_admin):
 
             log_event(user, "Admin login success")
 
-            st.success("Admin login successful")
             st.rerun()
 
         # =============================
-        # CUSTOMER LOGIN (FULL FLOW)
+        # CUSTOMER LOGIN
         # =============================
-
         users = load_encrypted_file("users")
 
         if users is None:
             st.error("User database not found")
             return
 
-        user_row = users[users["Username"] == user]
+        row = users[users["Username"] == user]
 
-        if user_row.empty:
+        if row.empty:
             st.error("User not found")
             return
 
-        if user_row.iloc[0].get("Blocked", False):
-            st.error("User is blocked")
-            return
-
-        stored_hash = user_row.iloc[0]["Password"]
+        stored_hash = row.iloc[0]["Password"]
 
         if not bcrypt.checkpw(pwd.encode(), stored_hash.encode()):
-            log_event(user, "Wrong password")
-            st.error("Invalid credentials")
+            st.error("Invalid password")
             return
 
         # OTP
@@ -114,16 +116,15 @@ def login_flow(is_admin):
         st.session_state.otp_hash = bcrypt.hashpw(otp.encode(), bcrypt.gensalt())
         st.session_state.otp_expiry = datetime.now() + timedelta(seconds=OTP_EXPIRY)
         st.session_state.temp_user = user
-        st.session_state.user_email = user_row.iloc[0]["Customer email ID"]
+        st.session_state.user_email = row.iloc[0]["Customer email ID"]
 
         send_otp(st.session_state.user_email, otp)
 
-        st.success("OTP sent to your email")
+        st.success("OTP sent")
 
     # =============================
     # OTP VERIFY
     # =============================
-
     if "otp_hash" in st.session_state:
 
         otp_input = st.text_input("Enter OTP")
@@ -141,9 +142,6 @@ def login_flow(is_admin):
 
                 log_event(st.session_state.temp_user, "Customer login success")
 
-                st.success("Login successful")
                 st.rerun()
-
             else:
-                log_event(st.session_state.temp_user, "OTP failed")
                 st.error("Invalid OTP")
