@@ -62,3 +62,71 @@ def get_suggestions(df, query, limit=5):
     suggestions = matches["Description"].dropna().unique().tolist()
 
     return suggestions[:limit]
+from difflib import SequenceMatcher
+
+def fuzzy_match(a, b):
+    return SequenceMatcher(None, a, b).ratio()
+
+def fuzzy_search(df, query, threshold=0.6):
+    query = query.lower()
+
+    scores = df["search_blob"].apply(lambda x: fuzzy_match(query, x))
+    return df[scores > threshold].head(20)
+
+def search_parts(df, query):
+    results = multi_keyword_search(df, query)
+
+    if results.empty:
+        results = fuzzy_search(df, query)
+
+    return results
+
+lang = st.selectbox("🌍", ["en", "ar"], index=0)
+st.session_state.lang = lang
+
+def render_notifications():
+    st.markdown("### 🔔 Notifications")
+
+    import os
+    files = os.listdir("data")
+
+    for f in files:
+        if "campaign" in f:
+            with open(f"data/{f}", "rb") as file:
+                st.download_button(f"📄 {f}", file)
+
+import streamlit as st
+
+is_mobile = st.session_state.get("mobile", False)
+
+for i, row in results.iterrows():
+
+    if is_mobile:
+        with st.container():
+            st.markdown(f"""
+            **{row['Description']}**  
+            Brand: {row['Brand']}  
+            Price: {row['Price']} AED  
+            """)
+    else:
+        # existing desktop table layout
+        pass
+
+from security import log_event
+
+if results.empty:
+    log_event("user", f"NOT FOUND: {query}")
+
+from database import load_encrypted_file
+users = load_encrypted_file("users")
+
+if users is not None:
+    user_row = users[users["Username"] == user]
+
+    if user_row.empty:
+        st.error("User not found")
+        return
+
+    if user_row.iloc[0].get("Blocked", False):
+        st.error("User is blocked")
+        return
