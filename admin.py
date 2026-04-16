@@ -59,20 +59,36 @@ def admin_dashboard():
         file = st.file_uploader("Upload Campaign")
 
         if file:
+            os.makedirs("data", exist_ok=True)
             path = f"data/campaign_{file.name}"
             with open(path, "wb") as f:
                 f.write(file.read())
+
             st.success("Campaign uploaded")
 
     # =============================
-    # LOGS
+    # LOGS (FIXED)
     # =============================
 
     with tabs[3]:
         log_file = "logs/audit_log.csv"
 
-        if os.path.exists(log_file):
+        if not os.path.exists(log_file):
+            st.info("No logs available yet")
+            return
+
+        # 🔥 FIX: HANDLE EMPTY FILE
+        if os.path.getsize(log_file) == 0:
+            st.info("Logs file is empty")
+            return
+
+        try:
             df = pd.read_csv(log_file)
+
+            if df.empty:
+                st.info("No logs recorded yet")
+                return
+
             st.dataframe(df.tail(10))
 
             st.download_button(
@@ -80,5 +96,6 @@ def admin_dashboard():
                 df.to_csv(index=False),
                 file_name="audit_logs.csv"
             )
-        else:
-            st.info("No logs available")
+
+        except Exception as e:
+            st.error(f"Failed to load logs: {str(e)}")
