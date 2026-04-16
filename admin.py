@@ -27,6 +27,7 @@ def admin_dashboard():
             ok, msg = save_encrypted_file(file, "users")
             if ok:
                 st.success(msg)
+                st.cache_data.clear()
             else:
                 st.error(msg)
 
@@ -48,6 +49,7 @@ def admin_dashboard():
             ok, msg = save_encrypted_file(file, "price")
             if ok:
                 st.success(msg)
+                st.cache_data.clear()
             else:
                 st.error(msg)
 
