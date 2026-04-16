@@ -7,48 +7,22 @@ from io import BytesIO
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
+
 # =============================
-# SAFE FERNET HANDLER
+# FERNET KEY
 # =============================
 
 def get_fernet():
-    try:
-        key = st.secrets["ENCRYPTION_KEY"]
-    except Exception:
-        st.error("❌ ENCRYPTION_KEY missing in Streamlit Secrets")
-        st.stop()
-
+    key = st.secrets["ENCRYPTION_KEY"]
     return Fernet(key.encode())
 
 
 # =============================
-# REQUIRED COLUMNS
+# FILE PATH (FIXED)
 # =============================
 
-USER_COLUMNS = [
-    "Username", "Password", "Customer Name", "Customer Code",
-    "Max search per day", "Customer email ID",
-    "Salesman Name", "Salesman Phone", "Salesman Email"
-]
-
-PRICE_COLUMNS = [
-    "Brand", "Vehicle", "OE Part Number",
-    "Manufacturing Part Number", "Description",
-    "Stock", "Price"
-]
-
-# =============================
-# VALIDATE FILE
-# =============================
-
-def validate_columns(df, required_cols):
-    df.columns = [c.strip() for c in df.columns]
-    missing = [c for c in required_cols if c not in df.columns]
-
-    if missing:
-        return False, f"Missing columns: {missing}"
-
-    return True, "OK"
+def get_path(file_type):
+    return os.path.join(DATA_DIR, f"{file_type}.enc")
 
 
 # =============================
@@ -61,57 +35,43 @@ def save_encrypted_file(uploaded_file, file_type):
     except Exception:
         return False, "Invalid Excel file"
 
-    # Validate
-    if file_type == "users":
-        valid, msg = validate_columns(df, USER_COLUMNS)
-    elif file_type == "price":
-        valid, msg = validate_columns(df, PRICE_COLUMNS)
-    else:
-        valid, msg = True, "OK"
-
-    if not valid:
-        return False, msg
-
-    # Encrypt
-    fernet = get_fernet()
-
     buffer = BytesIO()
     df.to_excel(buffer, index=False)
 
-    encrypted = fernet.encrypt(buffer.getvalue())
+    encrypted = get_fernet().encrypt(buffer.getvalue())
 
-    path = os.path.join(DATA_DIR, f"{file_type}.enc")
+    path = get_path(file_type)
 
     with open(path, "wb") as f:
         f.write(encrypted)
 
-    return True, "✅ File uploaded & encrypted"
+    return True, f"{file_type} file uploaded & encrypted"
 
 
 # =============================
-# LOAD ENCRYPTED FILE
+# LOAD FILE (FIXED DEBUG)
 # =============================
 
 @st.cache_data
 def load_encrypted_file(file_type):
-    path = os.path.join(DATA_DIR, f"{file_type}.enc")
 
+    path = get_path(file_type)
+
+    # 🔴 DEBUG IMPORTANT
     if not os.path.exists(path):
+        st.error(f"Missing file: {path}")
         return None
 
     try:
-        fernet = get_fernet()
-
         with open(path, "rb") as f:
             encrypted = f.read()
 
-        decrypted = fernet.decrypt(encrypted)
+        decrypted = get_fernet().decrypt(encrypted)
 
         df = pd.read_excel(BytesIO(decrypted))
-        df.columns = [c.strip() for c in df.columns]
 
         return df
 
     except Exception as e:
-        st.error(f"❌ Failed to load {file_type}: {str(e)}")
+        st.error(f"Decrypt failed: {str(e)}")
         return None
