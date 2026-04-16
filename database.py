@@ -70,7 +70,6 @@ def get_path(file_type):
     return os.path.join(DATA_DIR, f"{file_type}.enc")
 
 
-@st.cache_data
 def load_encrypted_file(file_type):
 
     path = get_path(file_type)
