@@ -16,6 +16,7 @@ if is_admin:
     # DIRECT LOGIN (NO OTP)
     st.session_state.authenticated = True
     st.session_state.role = "admin"
+    import time
     st.session_state.last_activity = time.time()
 
     log_event(user, "Admin Login Success")
