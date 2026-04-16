@@ -1,33 +1,75 @@
 import streamlit as st
-from database import save_encrypted
+from database import save_encrypted_file, load_encrypted_file
 import pandas as pd
 import os
 
 def admin_dashboard():
-    st.title("Admin Panel")
+    st.title("🔐 Admin Panel")
 
-    tabs = st.tabs(["Users","Price","Campaigns","Logs"])
+    tabs = st.tabs([
+        "👤 Users",
+        "📦 Price List",
+        "📢 Campaigns",
+        "📊 Audit Logs"
+    ])
+
+    # =============================
+    # USERS
+    # =============================
 
     with tabs[0]:
-        file = st.file_uploader("Upload Users")
+        file = st.file_uploader("Upload Users Excel")
+
         if file:
-            save_encrypted(file,"users")
-            st.success("Users uploaded")
+            ok, msg = save_encrypted_file(file, "users")
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+    # =============================
+    # PRICE
+    # =============================
 
     with tabs[1]:
-        file = st.file_uploader("Upload Price")
+        file = st.file_uploader("Upload Price List")
+
         if file:
-            save_encrypted(file,"price")
-            st.success("Price uploaded")
+            ok, msg = save_encrypted_file(file, "price")
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+    # =============================
+    # CAMPAIGNS
+    # =============================
 
     with tabs[2]:
         file = st.file_uploader("Upload Campaign")
+
         if file:
-            save_encrypted(file,"campaign")
+            path = f"data/campaign_{file.name}"
+            with open(path, "wb") as f:
+                f.write(file.read())
             st.success("Campaign uploaded")
 
+    # =============================
+    # LOGS
+    # =============================
+
     with tabs[3]:
-        if os.path.exists("logs/audit_log.csv"):
-            df = pd.read_csv("logs/audit_log.csv")
+        log_file = "logs/audit_log.csv"
+
+        if os.path.exists(log_file):
+            df = pd.read_csv(log_file)
+
             st.dataframe(df.tail(10))
-            st.download_button("Download Logs", df.to_csv(index=False))
+
+            st.download_button(
+                "Download Logs",
+                df.to_csv(index=False),
+                file_name="audit_logs.csv"
+            )
+        else:
+            st.info("No logs available")
