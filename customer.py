@@ -3,8 +3,31 @@ import os
 import pandas as pd
 
 from database import load_encrypted_file
-from search_engine import prepare_search, search_parts, get_suggestions
+from search_engine import prepare_search, search_parts
 from security import log_event
+from utils import send_alert_email, get_country
+
+
+# =============================
+# LANGUAGE
+# =============================
+def t(key):
+    lang = st.session_state.get("lang", "EN")
+
+    data = {
+        "EN": {
+            "search": "Search Parts",
+            "cart": "Cart",
+            "contact": "Sales Contact"
+        },
+        "AR": {
+            "search": "بحث",
+            "cart": "السلة",
+            "contact": "التواصل"
+        }
+    }
+
+    return data[lang][key]
 
 
 # =============================
@@ -12,61 +35,44 @@ from security import log_event
 # =============================
 def render_header():
 
-    st.markdown("""
-    <style>
-    .header {
-        position: sticky;
-        top: 0;
-        background: #0E1117;
-        padding: 10px;
-        z-index: 999;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 6, 1])
+    col1, col2, col3, col4 = st.columns([1, 5, 1, 1])
 
     with col1:
         if os.path.exists("dynatrade_logo.png"):
-            st.image("dynatrade_logo.png", width=100)
+            st.image("dynatrade_logo.png", width=90)
 
     with col2:
         st.markdown("## Dynatrade Automotive LLC")
 
     with col3:
-        with st.expander("🔔 Notifications"):
+        if st.button("EN/AR"):
+            st.session_state.lang = "AR" if st.session_state.get("lang","EN")=="EN" else "EN"
 
+    with col4:
+        with st.expander("🔔"):
             if os.path.exists("data"):
-                files = os.listdir("data")
-                if files:
-                    for f in files:
-                        st.write(f"📢 {f}")
-                else:
-                    st.write("No updates")
+                for f in os.listdir("data"):
+                    st.write(f)
 
 
 # =============================
 # SALES CONTACT
 # =============================
-def render_sales_contact():
+def render_sales():
 
     users = load_encrypted_file("users")
+    user = st.session_state.get("temp_user")
 
-    username = st.session_state.get("temp_user")
+    row = users[users["Username"] == user]
 
-    row = users[users["Username"] == username]
+    st.markdown(f"### 📞 {t('contact')}")
 
-    if row.empty:
-        return
+    st.write(row.iloc[0]["Salesman Name"])
+    st.write(row.iloc[0]["Salesman Email"])
+    st.write(row.iloc[0]["Salesman Phone"])
 
-    st.markdown("### 📞 Sales Contact")
-
-    st.write(f"👤 {row.iloc[0]['Salesman Name']}")
-    st.write(f"📧 {row.iloc[0]['Salesman Email']}")
-    st.write(f"📱 {row.iloc[0]['Salesman Phone']}")
-
-    phone = str(row.iloc[0]['Salesman Phone']).replace("+", "")
-    st.markdown(f"[💬 WhatsApp](https://wa.me/{phone})")
+    phone = str(row.iloc[0]["Salesman Phone"]).replace("+","")
+    st.markdown(f"https://wa.me/{phone}")
 
 
 # =============================
@@ -74,37 +80,18 @@ def render_sales_contact():
 # =============================
 def render_cart():
 
-    st.markdown("### 🛒 Cart")
+    st.markdown(f"### 🛒 {t('cart')}")
 
     if "cart" not in st.session_state:
         st.session_state.cart = []
 
     total = 0
 
-    for i, item in enumerate(st.session_state.cart):
-
+    for item in st.session_state.cart:
         st.write(item["Description"])
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("-", key=f"m{i}"):
-                item["Qty"] -= 1
-                if item["Qty"] <= 0:
-                    st.session_state.cart.pop(i)
-                st.rerun()
-
-        with col2:
-            st.write(item["Qty"])
-
-        with col3:
-            if st.button("+", key=f"p{i}"):
-                item["Qty"] += 1
-                st.rerun()
-
         total += float(item["Price"]) * item["Qty"]
 
-    st.markdown(f"### 💰 Total: {total}")
+    st.write("Total:", total)
 
 
 # =============================
@@ -118,52 +105,53 @@ def customer_dashboard():
 
     with col1:
 
-        st.markdown("### 🔍 Search Parts")
+        st.markdown(f"### 🔍 {t('search')}")
 
         df = load_encrypted_file("price")
 
         if df is None:
-            st.warning("Upload price list")
             return
 
         df = prepare_search(df)
 
-        search = st.text_input("Search")
+        search = st.text_input("")
 
         if not search:
-            st.info("Start typing to search parts")
             return
-
-        suggestions = get_suggestions(df, search)
-        for s in suggestions:
-            st.caption(s)
 
         results = search_parts(df, search)
 
-        user = st.session_state.get("temp_user", "unknown")
+        user = st.session_state.get("temp_user")
+
+        country = get_country()
 
         if results.empty:
-            log_event(user, "SEARCH_FAIL", search)
-            st.warning("No results")
+            log_event(user, "SEARCH_FAIL", search + f" ({country})")
+
+            # EMAIL ALERT
+            users = load_encrypted_file("users")
+            row = users[users["Username"] == user]
+
+            send_alert_email(
+                row.iloc[0]["Salesman Email"],
+                f"{user} searched: {search}"
+            )
+
+            st.warning("Not found")
             return
+
         else:
-            log_event(user, "SEARCH_SUCCESS", search)
+            log_event(user, "SEARCH_SUCCESS", search + f" ({country})")
 
-        for i, row in results.iterrows():
+        for _, row in results.iterrows():
 
-            st.markdown(f"""
-            **{row['Description']}**  
-            {row['Brand']} | {row['Vehicle']}  
-            Price: {row['Price']}
-            """)
+            st.write(row["Description"])
 
-            if st.button("Add", key=i):
-
+            if st.button("Add"):
                 item = row.to_dict()
                 item["Qty"] = 1
-
                 st.session_state.cart.append(item)
 
     with col2:
         render_cart()
-        render_sales_contact()
+        render_sales()
