@@ -1,95 +1,82 @@
 import streamlit as st
 import os
+import pandas as pd
+import urllib.parse
 
 from database import load_encrypted_file
 from search_engine import prepare_search, search_parts
 
 # =============================
-# GLOBAL UI THEME
+# CONFIG + THEME
 # =============================
-def apply_theme():
-    st.set_page_config(layout="wide")
+st.set_page_config(layout="wide")
 
+def apply_theme():
     st.markdown("""
     <style>
+    body { background-color:#0e1117; }
 
-    body {
-        background-color: #0e1117;
-    }
-
-    .main {
-        background-color: #0e1117;
-    }
-
-    .block-container {
-        padding-top: 1rem;
-    }
-
-    /* HEADER BAR */
     .header {
-        background-color: #111827;
-        padding: 12px 20px;
-        border-radius: 10px;
-        margin-bottom: 15px;
+        background:#111827;
+        padding:12px 20px;
+        border-radius:10px;
+        margin-bottom:10px;
     }
 
-    /* SEARCH BAR */
-    input {
-        border-radius: 8px !important;
+    .section {
+        margin-top:15px;
     }
 
-    /* TABLE HEADER */
     .table-head {
-        font-weight: 600;
-        color: #9ca3af;
-        border-bottom: 1px solid #1f2937;
-        padding-bottom: 5px;
-    }
-
-    /* CARD */
-    .card {
-        background-color: #161b22;
-        padding: 10px;
-        border-radius: 10px;
-        margin-bottom: 8px;
+        font-weight:600;
+        color:#9ca3af;
     }
 
     </style>
     """, unsafe_allow_html=True)
 
-
 # =============================
-# HEADER (TOP NAV)
+# HEADER
 # =============================
 def render_header():
 
     st.markdown('<div class="header">', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([2,5,2])
+    c1, c2, c3 = st.columns([2,5,2])
 
-    with col1:
+    with c1:
         if os.path.exists("dynatrade_logo.png"):
             st.image("dynatrade_logo.png", width=90)
         st.markdown("**Dynatrade Automotive LLC**")
 
-    with col2:
+    with c2:
         st.session_state.search = st.text_input(
-            "Search parts...", label_visibility="collapsed"
+            "Search parts...",
+            value=st.session_state.get("search",""),
+            label_visibility="collapsed"
         )
 
-    with col3:
+    with c3:
         with st.expander("🔔 Notifications"):
             if os.path.exists("data"):
                 for f in os.listdir("data"):
-                    st.write(f"📢 {f}")
+                    st.write(f"🆕 {f}")
 
-        st.write("👤 User")
+        st.write("👤 Customer")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+# =============================
+# CART LOGIC
+# =============================
+def get_cart_total():
+    total = 0
+    for item in st.session_state.cart:
+        total += float(item["Price"]) * item["Qty"]
+    return total
 
 # =============================
-# CART PANEL
+# CART UI
 # =============================
 def render_cart():
 
@@ -97,8 +84,6 @@ def render_cart():
 
     if "cart" not in st.session_state:
         st.session_state.cart = []
-
-    total = 0
 
     for i, item in enumerate(st.session_state.cart):
 
@@ -118,10 +103,35 @@ def render_cart():
             item["Qty"] += 1
             st.rerun()
 
-        total += float(item["Price"]) * item["Qty"]
+    total = get_cart_total()
 
-    st.markdown(f"### 💰 Total: AED {total}")
+    st.markdown(f"### 💰 Total: AED {total:,.2f}")
 
+    # =============================
+    # DOWNLOAD CART
+    # =============================
+    if st.session_state.cart:
+        df = pd.DataFrame(st.session_state.cart)
+
+        st.download_button(
+            "📥 Download Cart",
+            df.to_csv(index=False),
+            "cart.csv",
+            key="download_cart"
+        )
+
+        # =============================
+        # WHATSAPP
+        # =============================
+        msg = "Inquiry:\n\n"
+        for item in st.session_state.cart:
+            msg += f"{item['Description']} x {item['Qty']}\n"
+
+        encoded = urllib.parse.quote(msg)
+
+        st.markdown(
+            f"[💬 Send via WhatsApp](https://wa.me/?text={encoded})"
+        )
 
 # =============================
 # SALES CONTACT
@@ -141,16 +151,12 @@ def render_sales():
 
     st.markdown("### 📞 Sales Contact")
 
-    st.write(row.iloc[0]["Salesman Name"])
-    st.write(row.iloc[0]["Salesman Email"])
-    st.write(row.iloc[0]["Salesman Phone"])
-
-    phone = str(row.iloc[0]["Salesman Phone"]).replace("+","")
-    st.markdown(f"[💬 WhatsApp](https://wa.me/{phone})")
-
+    st.write(f"👤 {row.iloc[0]['Salesman Name']}")
+    st.write(f"📧 {row.iloc[0]['Salesman Email']}")
+    st.write(f"📱 {row.iloc[0]['Salesman Phone']}")
 
 # =============================
-# MAIN DASHBOARD
+# MAIN
 # =============================
 def customer_dashboard():
 
@@ -160,7 +166,7 @@ def customer_dashboard():
     col_main, col_side = st.columns([3,1])
 
     # =============================
-    # MAIN SEARCH RESULTS
+    # MAIN AREA
     # =============================
     with col_main:
 
@@ -172,10 +178,10 @@ def customer_dashboard():
 
         df = prepare_search(df)
 
-        search = st.session_state.get("search", "")
+        search = st.session_state.get("search","")
 
         if not search:
-            st.info("Search parts using top bar")
+            st.info("Search parts using the top bar")
             return
 
         results = search_parts(df, search)
@@ -184,8 +190,8 @@ def customer_dashboard():
             st.warning("No results found")
             return
 
-        # HEADER ROW
-        h1, h2, h3, h4, h5, h6 = st.columns([2,2,2,3,1,1])
+        # TABLE HEADER
+        h1,h2,h3,h4,h5,h6 = st.columns([2,2,2,3,1,1])
         h1.markdown("**Brand**")
         h2.markdown("**Vehicle**")
         h3.markdown("**OE**")
@@ -195,10 +201,10 @@ def customer_dashboard():
 
         st.markdown("---")
 
-        # DATA ROWS
+        # TABLE ROWS
         for i, row in results.iterrows():
 
-            c1, c2, c3, c4, c5, c6 = st.columns([2,2,2,3,1,1])
+            c1,c2,c3,c4,c5,c6 = st.columns([2,2,2,3,1,1])
 
             c1.write(row["Brand"])
             c2.write(row["Vehicle"])
@@ -211,15 +217,9 @@ def customer_dashboard():
                 c5.markdown("🔴")
 
             if c6.button("Add", key=f"add_{i}"):
-
                 item = row.to_dict()
                 item["Qty"] = 1
-
-                if "cart" not in st.session_state:
-                    st.session_state.cart = []
-
                 st.session_state.cart.append(item)
-
                 st.toast("Added to cart")
 
     # =============================
