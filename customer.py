@@ -1,12 +1,13 @@
 import streamlit as st
 import os
+import pandas as pd
 
 from database import load_encrypted_file
 from search_engine import prepare_search, search_parts, get_suggestions
 
 
 # =============================
-# SAFE SESSION INIT
+# SESSION INIT
 # =============================
 def init_session():
 
@@ -40,14 +41,24 @@ def render_header():
 
 
 # =============================
-# ADD TO CART
+# ADD TO CART (WITH QTY)
 # =============================
 def add_to_cart(row):
-    st.session_state.cart.append(row.to_dict())
+
+    item = row.to_dict()
+
+    # Check if already exists
+    for cart_item in st.session_state.cart:
+        if cart_item["OE Part Number"] == item["OE Part Number"]:
+            cart_item["Qty"] += 1
+            return
+
+    item["Qty"] = 1
+    st.session_state.cart.append(item)
 
 
 # =============================
-# CART PANEL
+# CART UI
 # =============================
 def render_cart():
 
@@ -57,17 +68,54 @@ def render_cart():
         st.info("Cart is empty")
         return
 
+    total = 0
+
     for i, item in enumerate(st.session_state.cart):
 
-        col1, col2 = st.columns([4, 1])
+        col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
 
         with col1:
-            st.write(f"{item.get('Description', '')} | {item.get('Price', '')}")
+            st.write(item["Description"])
 
         with col2:
-            if st.button("❌", key=f"del_{i}"):
-                st.session_state.cart.pop(i)
+            if st.button("➖", key=f"minus_{i}"):
+                item["Qty"] -= 1
+                if item["Qty"] <= 0:
+                    st.session_state.cart.pop(i)
                 st.rerun()
+
+        with col3:
+            st.write(f"{item['Qty']}")
+
+        with col4:
+            if st.button("➕", key=f"plus_{i}"):
+                item["Qty"] += 1
+                st.rerun()
+
+        price = float(item.get("Price", 0))
+        total += price * item["Qty"]
+
+        st.markdown("---")
+
+    st.markdown(f"### 💰 Total: {round(total,2)}")
+
+    # =============================
+    # EXPORT TO EXCEL
+    # =============================
+    if st.button("📥 Download Excel"):
+
+        df = pd.DataFrame(st.session_state.cart)
+
+        file_path = "cart.xlsx"
+        df.to_excel(file_path, index=False)
+
+        with open(file_path, "rb") as f:
+            st.download_button(
+                label="Download File",
+                data=f,
+                file_name="cart.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
 
 # =============================
@@ -82,7 +130,7 @@ def customer_dashboard():
     col_main, col_cart = st.columns([3, 1])
 
     # =============================
-    # LEFT SIDE (SEARCH)
+    # SEARCH AREA
     # =============================
     with col_main:
 
@@ -94,7 +142,6 @@ def customer_dashboard():
             st.warning("Price list not uploaded yet")
             return
 
-        # 🔥 PREPARE FAST SEARCH
         df = prepare_search(df)
 
         search = st.text_input(
@@ -102,21 +149,17 @@ def customer_dashboard():
             placeholder="Search OE / MFG / Brand / Vehicle..."
         )
 
-        # 🔥 SUGGESTIONS
+        # Suggestions
         suggestions = get_suggestions(df, search)
         for s in suggestions:
             st.caption(f"🔎 {s}")
 
-        # 🔥 FAST SEARCH RESULTS
         results = search_parts(df, search)
 
         if results.empty:
             st.warning("No results found")
             return
 
-        # =============================
-        # DISPLAY RESULTS
-        # =============================
         for i, row in results.iterrows():
 
             col1, col2 = st.columns([5, 1])
@@ -138,7 +181,7 @@ def customer_dashboard():
             st.markdown("---")
 
     # =============================
-    # RIGHT SIDE (CART)
+    # CART AREA
     # =============================
     with col_cart:
         render_cart()
