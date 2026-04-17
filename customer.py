@@ -4,6 +4,7 @@ import pandas as pd
 
 from database import load_encrypted_file
 from search_engine import prepare_search, search_parts, get_suggestions
+from security import log_event
 
 
 # =============================
@@ -47,7 +48,6 @@ def add_to_cart(row):
 
     item = row.to_dict()
 
-    # Check if already exists
     for cart_item in st.session_state.cart:
         if cart_item["OE Part Number"] == item["OE Part Number"]:
             cart_item["Qty"] += 1
@@ -149,17 +149,36 @@ def customer_dashboard():
             placeholder="Search OE / MFG / Brand / Vehicle..."
         )
 
-        # Suggestions
+        # =============================
+        # SUGGESTIONS
+        # =============================
         suggestions = get_suggestions(df, search)
         for s in suggestions:
             st.caption(f"🔎 {s}")
 
+        # =============================
+        # SEARCH RESULTS
+        # =============================
         results = search_parts(df, search)
+
+        # =============================
+        # 🔥 TRACK SEARCH ACTIVITY
+        # =============================
+        user = st.session_state.get("temp_user", "unknown")
+
+        if search:
+            if results.empty:
+                log_event(user, "SEARCH_FAIL", search)
+            else:
+                log_event(user, "SEARCH_SUCCESS", search)
 
         if results.empty:
             st.warning("No results found")
             return
 
+        # =============================
+        # DISPLAY RESULTS
+        # =============================
         for i, row in results.iterrows():
 
             col1, col2 = st.columns([5, 1])
