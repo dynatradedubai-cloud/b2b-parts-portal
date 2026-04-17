@@ -7,12 +7,13 @@ LOG_FILE = "logs/audit_log.csv"
 
 
 # =============================
-# INIT LOG FILE
+# INIT / FIX LOG FILE
 # =============================
 def init_log():
     os.makedirs("logs", exist_ok=True)
 
-    if not os.path.exists(LOG_FILE):
+    # If file missing OR empty → recreate
+    if not os.path.exists(LOG_FILE) or os.path.getsize(LOG_FILE) == 0:
         df = pd.DataFrame(columns=[
             "time", "user", "event", "detail"
         ])
@@ -20,12 +21,28 @@ def init_log():
 
 
 # =============================
+# SAFE READ LOG
+# =============================
+def read_log():
+
+    init_log()
+
+    try:
+        df = pd.read_csv(LOG_FILE)
+    except Exception:
+        # If corrupted → reset
+        init_log()
+        df = pd.read_csv(LOG_FILE)
+
+    return df
+
+
+# =============================
 # LOG EVENT
 # =============================
 def log_event(user, event, detail=""):
-    init_log()
 
-    df = pd.read_csv(LOG_FILE)
+    df = read_log()
 
     new_row = {
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -49,7 +66,6 @@ def rate_limit(user):
     now = time.time()
 
     user_data = st.session_state.attempts.get(user, [])
-
     user_data = [t for t in user_data if now - t < 60]
 
     if len(user_data) > 5:
@@ -62,25 +78,21 @@ def rate_limit(user):
 
 
 # =============================
-# 🔥 SAFE AUTO LOGOUT
+# SAFE AUTO LOGOUT
 # =============================
 def auto_logout():
 
-    # If not logged in → skip
     if "authenticated" not in st.session_state:
         return
 
-    # If first time → initialize
     if "last_activity" not in st.session_state:
         st.session_state.last_activity = time.time()
         return
 
-    # If invalid type → reset
     if not isinstance(st.session_state.last_activity, (int, float)):
         st.session_state.last_activity = time.time()
         return
 
-    # Check timeout
     if time.time() - st.session_state.last_activity > 3600:
         st.session_state.clear()
         st.warning("Session expired. Please login again.")
