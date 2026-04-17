@@ -1,10 +1,12 @@
 import streamlit as st
 import os
+
 from database import load_encrypted_file
+from search_engine import prepare_search, search_parts, get_suggestions
 
 
 # =============================
-# SAFE SESSION INIT (CRITICAL)
+# SAFE SESSION INIT
 # =============================
 def init_session():
 
@@ -16,11 +18,10 @@ def init_session():
 
 
 # =============================
-# HEADER WITH SAFE CHECK
+# HEADER
 # =============================
 def render_header():
 
-    # 🔥 Ensure session exists BEFORE using
     init_session()
 
     col1, col2, col3 = st.columns([1, 5, 1])
@@ -74,7 +75,6 @@ def render_cart():
 # =============================
 def customer_dashboard():
 
-    # 🔥 ALWAYS INIT FIRST
     init_session()
 
     render_header()
@@ -82,16 +82,11 @@ def customer_dashboard():
     col_main, col_cart = st.columns([3, 1])
 
     # =============================
-    # SEARCH AREA
+    # LEFT SIDE (SEARCH)
     # =============================
     with col_main:
 
         st.markdown("### 🔍 Search Parts")
-
-        search = st.text_input(
-            "",
-            placeholder="Search OE / MFG / Brand / Vehicle..."
-        )
 
         df = load_encrypted_file("price")
 
@@ -99,20 +94,29 @@ def customer_dashboard():
             st.warning("Price list not uploaded yet")
             return
 
-        if search:
-            search = search.lower()
+        # 🔥 PREPARE FAST SEARCH
+        df = prepare_search(df)
 
-            results = df[
-                df.astype(str)
-                .apply(lambda row: row.str.lower().str.contains(search).any(), axis=1)
-            ].head(20)
-        else:
-            results = df.head(20)
+        search = st.text_input(
+            "",
+            placeholder="Search OE / MFG / Brand / Vehicle..."
+        )
+
+        # 🔥 SUGGESTIONS
+        suggestions = get_suggestions(df, search)
+        for s in suggestions:
+            st.caption(f"🔎 {s}")
+
+        # 🔥 FAST SEARCH RESULTS
+        results = search_parts(df, search)
 
         if results.empty:
             st.warning("No results found")
             return
 
+        # =============================
+        # DISPLAY RESULTS
+        # =============================
         for i, row in results.iterrows():
 
             col1, col2 = st.columns([5, 1])
@@ -134,7 +138,7 @@ def customer_dashboard():
             st.markdown("---")
 
     # =============================
-    # CART AREA
+    # RIGHT SIDE (CART)
     # =============================
     with col_cart:
         render_cart()
