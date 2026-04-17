@@ -5,33 +5,37 @@ import pandas as pd
 
 LOG_FILE = "logs/audit_log.csv"
 
+REQUIRED_COLUMNS = ["time", "user", "event", "detail"]
+
 
 # =============================
-# INIT / FIX LOG FILE
+# FORCE CREATE VALID FILE
 # =============================
-def init_log():
+def create_clean_log():
     os.makedirs("logs", exist_ok=True)
-
-    # If file missing OR empty → recreate
-    if not os.path.exists(LOG_FILE) or os.path.getsize(LOG_FILE) == 0:
-        df = pd.DataFrame(columns=[
-            "time", "user", "event", "detail"
-        ])
-        df.to_csv(LOG_FILE, index=False)
+    df = pd.DataFrame(columns=REQUIRED_COLUMNS)
+    df.to_csv(LOG_FILE, index=False)
 
 
 # =============================
-# SAFE READ LOG
+# SAFE READ (BULLETPROOF)
 # =============================
 def read_log():
 
-    init_log()
+    # File not exists → create
+    if not os.path.exists(LOG_FILE):
+        create_clean_log()
 
     try:
         df = pd.read_csv(LOG_FILE)
+
+        # Validate structure
+        if list(df.columns) != REQUIRED_COLUMNS:
+            raise ValueError("Invalid structure")
+
     except Exception:
-        # If corrupted → reset
-        init_log()
+        # ANY error → rebuild file
+        create_clean_log()
         df = pd.read_csv(LOG_FILE)
 
     return df
