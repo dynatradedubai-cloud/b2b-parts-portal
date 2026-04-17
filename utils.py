@@ -1,35 +1,28 @@
-import hashlib
-import platform
-import socket
+import requests
+import streamlit as st
+import smtplib
+from email.mime.text import MIMEText
 
-def normalize(text):
-    return str(text).lower().strip()
 
-def get_device_fingerprint():
-    system = platform.system()
-    node = platform.node()
-    processor = platform.processor()
-    return hashlib.sha256(f"{system}-{node}-{processor}".encode()).hexdigest()
-
-def get_ip():
+def get_country():
     try:
-        return socket.gethostbyname(socket.gethostname())
+        res = requests.get("https://ipapi.co/json/")
+        return res.json().get("country_name", "Unknown")
     except:
-        return "unknown"
-LANG = {
-    "en": {
-        "search": "Search Parts",
-        "cart": "Cart",
-        "no_results": "No results found",
-    },
-    "ar": {
-        "search": "بحث عن القطع",
-        "cart": "سلة المشتريات",
-        "no_results": "لا توجد نتائج",
-    }
-}
+        return "Unknown"
 
-def t(key):
-    import streamlit as st
-    lang = st.session_state.get("lang", "en")
-    return LANG[lang].get(key, key)
+
+def send_alert_email(to_email, message):
+
+    sender = st.secrets["SENDER_EMAIL"]
+    password = st.secrets["SENDER_APP_PASSWORD"]
+
+    msg = MIMEText(message)
+    msg["Subject"] = "Part Not Found Alert"
+    msg["From"] = sender
+    msg["To"] = to_email
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as s:
+        s.starttls()
+        s.login(sender, password)
+        s.send_message(msg)
