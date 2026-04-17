@@ -3,30 +3,55 @@ import os
 
 from database import load_encrypted_file
 from search_engine import prepare_search, search_parts
-from security import log_event
-from utils import get_country
-
 
 # =============================
-# GLOBAL STYLE
+# GLOBAL UI THEME
 # =============================
-def apply_ui():
+def apply_theme():
+    st.set_page_config(layout="wide")
+
     st.markdown("""
     <style>
+
+    body {
+        background-color: #0e1117;
+    }
+
+    .main {
+        background-color: #0e1117;
+    }
 
     .block-container {
         padding-top: 1rem;
     }
 
-    .stButton button {
-        border-radius: 8px;
-        height: 35px;
+    /* HEADER BAR */
+    .header {
+        background-color: #111827;
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 15px;
     }
 
-    .table-header {
-        font-weight: bold;
-        border-bottom: 1px solid #333;
+    /* SEARCH BAR */
+    input {
+        border-radius: 8px !important;
+    }
+
+    /* TABLE HEADER */
+    .table-head {
+        font-weight: 600;
+        color: #9ca3af;
+        border-bottom: 1px solid #1f2937;
         padding-bottom: 5px;
+    }
+
+    /* CARD */
+    .card {
+        background-color: #161b22;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 8px;
     }
 
     </style>
@@ -34,28 +59,37 @@ def apply_ui():
 
 
 # =============================
-# HEADER
+# HEADER (TOP NAV)
 # =============================
 def render_header():
 
-    col1, col2, col3 = st.columns([1, 6, 1])
+    st.markdown('<div class="header">', unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([2,5,2])
 
     with col1:
         if os.path.exists("dynatrade_logo.png"):
-            st.image("dynatrade_logo.png", width=80)
+            st.image("dynatrade_logo.png", width=90)
+        st.markdown("**Dynatrade Automotive LLC**")
 
     with col2:
-        st.markdown("## Dynatrade Automotive LLC")
+        st.session_state.search = st.text_input(
+            "Search parts...", label_visibility="collapsed"
+        )
 
     with col3:
-        with st.expander("🔔"):
+        with st.expander("🔔 Notifications"):
             if os.path.exists("data"):
                 for f in os.listdir("data"):
                     st.write(f"📢 {f}")
 
+        st.write("👤 User")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 # =============================
-# CART (ADVANCED)
+# CART PANEL
 # =============================
 def render_cart():
 
@@ -68,29 +102,25 @@ def render_cart():
 
     for i, item in enumerate(st.session_state.cart):
 
-        col1, col2, col3, col4 = st.columns([4,1,1,1])
+        c1, c2, c3, c4 = st.columns([4,1,1,1])
 
-        with col1:
-            st.write(item["Description"])
+        c1.write(item["Description"])
 
-        with col2:
-            if st.button("-", key=f"dec_{i}"):
-                item["Qty"] -= 1
-                if item["Qty"] <= 0:
-                    st.session_state.cart.pop(i)
-                st.rerun()
+        if c2.button("-", key=f"dec_{i}"):
+            item["Qty"] -= 1
+            if item["Qty"] <= 0:
+                st.session_state.cart.pop(i)
+            st.rerun()
 
-        with col3:
-            st.write(item["Qty"])
+        c3.write(item["Qty"])
 
-        with col4:
-            if st.button("+", key=f"inc_{i}"):
-                item["Qty"] += 1
-                st.rerun()
+        if c4.button("+", key=f"inc_{i}"):
+            item["Qty"] += 1
+            st.rerun()
 
         total += float(item["Price"]) * item["Qty"]
 
-    st.markdown(f"### 💰 Total: {total}")
+    st.markdown(f"### 💰 Total: AED {total}")
 
 
 # =============================
@@ -120,21 +150,19 @@ def render_sales():
 
 
 # =============================
-# MAIN
+# MAIN DASHBOARD
 # =============================
 def customer_dashboard():
 
-    apply_ui()
+    apply_theme()
     render_header()
 
     col_main, col_side = st.columns([3,1])
 
     # =============================
-    # SEARCH AREA
+    # MAIN SEARCH RESULTS
     # =============================
     with col_main:
-
-        st.markdown("### 🔍 Search Parts")
 
         df = load_encrypted_file("price")
 
@@ -144,29 +172,20 @@ def customer_dashboard():
 
         df = prepare_search(df)
 
-        search = st.text_input("Search part / brand / vehicle")
+        search = st.session_state.get("search", "")
 
         if not search:
-            st.info("Start typing to search parts")
+            st.info("Search parts using top bar")
             return
 
         results = search_parts(df, search)
 
-        user = st.session_state.get("temp_user","unknown")
-        country = get_country()
-
         if results.empty:
-            log_event(user, "SEARCH_FAIL", search)
             st.warning("No results found")
             return
-        else:
-            log_event(user, "SEARCH_SUCCESS", search)
 
-        # =============================
-        # TABLE HEADER
-        # =============================
+        # HEADER ROW
         h1, h2, h3, h4, h5, h6 = st.columns([2,2,2,3,1,1])
-
         h1.markdown("**Brand**")
         h2.markdown("**Vehicle**")
         h3.markdown("**OE**")
@@ -176,48 +195,35 @@ def customer_dashboard():
 
         st.markdown("---")
 
-        # =============================
-        # TABLE ROWS
-        # =============================
-        for idx, row in results.iterrows():
+        # DATA ROWS
+        for i, row in results.iterrows():
 
             c1, c2, c3, c4, c5, c6 = st.columns([2,2,2,3,1,1])
 
-            with c1:
-                st.write(row["Brand"])
+            c1.write(row["Brand"])
+            c2.write(row["Vehicle"])
+            c3.write(row["OE Part Number"])
+            c4.write(row["Description"])
 
-            with c2:
-                st.write(row["Vehicle"])
+            if int(row["Stock"]) > 0:
+                c5.markdown("🟢")
+            else:
+                c5.markdown("🔴")
 
-            with c3:
-                st.write(row["OE Part Number"])
+            if c6.button("Add", key=f"add_{i}"):
 
-            with c4:
-                st.write(row["Description"])
+                item = row.to_dict()
+                item["Qty"] = 1
 
-            with c5:
-                stock = int(row["Stock"])
+                if "cart" not in st.session_state:
+                    st.session_state.cart = []
 
-                if stock > 0:
-                    st.markdown("🟢")
-                else:
-                    st.markdown("🔴")
+                st.session_state.cart.append(item)
 
-            with c6:
-                if st.button("Add", key=f"add_{idx}"):
-
-                    item = row.to_dict()
-                    item["Qty"] = 1
-
-                    if "cart" not in st.session_state:
-                        st.session_state.cart = []
-
-                    st.session_state.cart.append(item)
-
-                    st.toast("Added to cart")
+                st.toast("Added to cart")
 
     # =============================
-    # RIGHT PANEL
+    # SIDE PANEL
     # =============================
     with col_side:
         render_cart()
