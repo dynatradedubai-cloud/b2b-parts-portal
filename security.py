@@ -7,7 +7,7 @@ LOG_FILE = "logs/audit_log.csv"
 
 
 # =============================
-# ENSURE LOG FILE
+# INIT LOG FILE
 # =============================
 def init_log():
     os.makedirs("logs", exist_ok=True)
@@ -34,7 +34,7 @@ def log_event(user, event, detail=""):
         "detail": detail
     }
 
-    df = pd.concat([df, pd.DataFrame([new_row])])
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(LOG_FILE, index=False)
 
 
@@ -50,7 +50,6 @@ def rate_limit(user):
 
     user_data = st.session_state.attempts.get(user, [])
 
-    # keep last 60 sec
     user_data = [t for t in user_data if now - t < 60]
 
     if len(user_data) > 5:
@@ -63,16 +62,33 @@ def rate_limit(user):
 
 
 # =============================
-# AUTO LOGOUT
+# 🔥 SAFE AUTO LOGOUT
 # =============================
 def auto_logout():
-    if "last_activity" not in st.session_state:
+
+    # If not logged in → skip
+    if "authenticated" not in st.session_state:
         return
 
+    # If first time → initialize
+    if "last_activity" not in st.session_state:
+        st.session_state.last_activity = time.time()
+        return
+
+    # If invalid type → reset
+    if not isinstance(st.session_state.last_activity, (int, float)):
+        st.session_state.last_activity = time.time()
+        return
+
+    # Check timeout
     if time.time() - st.session_state.last_activity > 3600:
         st.session_state.clear()
+        st.warning("Session expired. Please login again.")
         st.rerun()
 
 
+# =============================
+# UPDATE ACTIVITY
+# =============================
 def update_activity():
     st.session_state.last_activity = time.time()
