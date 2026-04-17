@@ -4,19 +4,24 @@ from database import load_encrypted_file
 
 
 # =============================
-# SESSION INIT (CART + NOTIFY)
+# SAFE SESSION INIT (CRITICAL)
 # =============================
-if "cart" not in st.session_state:
-    st.session_state.cart = []
+def init_session():
 
-if "notifications" not in st.session_state:
-    st.session_state.notifications = ["Welcome to Dynatrade Portal"]
+    if "cart" not in st.session_state:
+        st.session_state.cart = []
+
+    if "notifications" not in st.session_state:
+        st.session_state.notifications = ["Welcome to Dynatrade Portal"]
 
 
 # =============================
-# HEADER WITH BELL
+# HEADER WITH SAFE CHECK
 # =============================
 def render_header():
+
+    # 🔥 Ensure session exists BEFORE using
+    init_session()
 
     col1, col2, col3 = st.columns([1, 5, 1])
 
@@ -52,6 +57,7 @@ def render_cart():
         return
 
     for i, item in enumerate(st.session_state.cart):
+
         col1, col2 = st.columns([4, 1])
 
         with col1:
@@ -68,12 +74,15 @@ def render_cart():
 # =============================
 def customer_dashboard():
 
+    # 🔥 ALWAYS INIT FIRST
+    init_session()
+
     render_header()
 
     col_main, col_cart = st.columns([3, 1])
 
     # =============================
-    # LEFT SIDE (SEARCH)
+    # SEARCH AREA
     # =============================
     with col_main:
 
@@ -104,9 +113,6 @@ def customer_dashboard():
             st.warning("No results found")
             return
 
-        # =============================
-        # SHOW RESULTS
-        # =============================
         for i, row in results.iterrows():
 
             col1, col2 = st.columns([5, 1])
@@ -128,7 +134,7 @@ def customer_dashboard():
             st.markdown("---")
 
     # =============================
-    # RIGHT SIDE (CART)
+    # CART AREA
     # =============================
     with col_cart:
         render_cart()
