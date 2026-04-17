@@ -8,199 +8,162 @@ from security import log_event
 
 
 # =============================
-# SESSION INIT
-# =============================
-def init_session():
-
-    if "cart" not in st.session_state:
-        st.session_state.cart = []
-
-    if "notifications" not in st.session_state:
-        st.session_state.notifications = ["Welcome to Dynatrade Portal"]
-
-
-# =============================
 # HEADER
 # =============================
 def render_header():
 
-    init_session()
+    st.markdown("""
+    <style>
+    .header {
+        position: sticky;
+        top: 0;
+        background: #0E1117;
+        padding: 10px;
+        z-index: 999;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 5, 1])
+    col1, col2, col3 = st.columns([1, 6, 1])
 
     with col1:
         if os.path.exists("dynatrade_logo.png"):
-            st.image("dynatrade_logo.png", width=90)
+            st.image("dynatrade_logo.png", width=100)
 
     with col2:
-        st.markdown("### Dynatrade Automotive LLC")
+        st.markdown("## Dynatrade Automotive LLC")
 
     with col3:
-        with st.expander("🔔 NEW"):
-            for n in st.session_state.notifications:
-                st.write(n)
+        with st.expander("🔔 Notifications"):
+
+            if os.path.exists("data"):
+                files = os.listdir("data")
+                if files:
+                    for f in files:
+                        st.write(f"📢 {f}")
+                else:
+                    st.write("No updates")
 
 
 # =============================
-# ADD TO CART (WITH QTY)
+# SALES CONTACT
 # =============================
-def add_to_cart(row):
+def render_sales_contact():
 
-    item = row.to_dict()
+    users = load_encrypted_file("users")
 
-    for cart_item in st.session_state.cart:
-        if cart_item["OE Part Number"] == item["OE Part Number"]:
-            cart_item["Qty"] += 1
-            return
+    username = st.session_state.get("temp_user")
 
-    item["Qty"] = 1
-    st.session_state.cart.append(item)
+    row = users[users["Username"] == username]
+
+    if row.empty:
+        return
+
+    st.markdown("### 📞 Sales Contact")
+
+    st.write(f"👤 {row.iloc[0]['Salesman Name']}")
+    st.write(f"📧 {row.iloc[0]['Salesman Email']}")
+    st.write(f"📱 {row.iloc[0]['Salesman Phone']}")
+
+    phone = str(row.iloc[0]['Salesman Phone']).replace("+", "")
+    st.markdown(f"[💬 WhatsApp](https://wa.me/{phone})")
 
 
 # =============================
-# CART UI
+# CART
 # =============================
 def render_cart():
 
-    st.markdown("## 🛒 Cart")
+    st.markdown("### 🛒 Cart")
 
-    if not st.session_state.cart:
-        st.info("Cart is empty")
-        return
+    if "cart" not in st.session_state:
+        st.session_state.cart = []
 
     total = 0
 
     for i, item in enumerate(st.session_state.cart):
 
-        col1, col2, col3, col4 = st.columns([4, 1, 1, 1])
+        st.write(item["Description"])
+
+        col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.write(item["Description"])
-
-        with col2:
-            if st.button("➖", key=f"minus_{i}"):
+            if st.button("-", key=f"m{i}"):
                 item["Qty"] -= 1
                 if item["Qty"] <= 0:
                     st.session_state.cart.pop(i)
                 st.rerun()
 
-        with col3:
-            st.write(f"{item['Qty']}")
+        with col2:
+            st.write(item["Qty"])
 
-        with col4:
-            if st.button("➕", key=f"plus_{i}"):
+        with col3:
+            if st.button("+", key=f"p{i}"):
                 item["Qty"] += 1
                 st.rerun()
 
-        price = float(item.get("Price", 0))
-        total += price * item["Qty"]
+        total += float(item["Price"]) * item["Qty"]
 
-        st.markdown("---")
-
-    st.markdown(f"### 💰 Total: {round(total,2)}")
-
-    # =============================
-    # EXPORT TO EXCEL
-    # =============================
-    if st.button("📥 Download Excel"):
-
-        df = pd.DataFrame(st.session_state.cart)
-
-        file_path = "cart.xlsx"
-        df.to_excel(file_path, index=False)
-
-        with open(file_path, "rb") as f:
-            st.download_button(
-                label="Download File",
-                data=f,
-                file_name="cart.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+    st.markdown(f"### 💰 Total: {total}")
 
 
 # =============================
-# MAIN DASHBOARD
+# MAIN
 # =============================
 def customer_dashboard():
 
-    init_session()
-
     render_header()
 
-    col_main, col_cart = st.columns([3, 1])
+    col1, col2 = st.columns([3, 1])
 
-    # =============================
-    # SEARCH AREA
-    # =============================
-    with col_main:
+    with col1:
 
         st.markdown("### 🔍 Search Parts")
 
         df = load_encrypted_file("price")
 
         if df is None:
-            st.warning("Price list not uploaded yet")
+            st.warning("Upload price list")
             return
 
         df = prepare_search(df)
 
-        search = st.text_input(
-            "",
-            placeholder="Search OE / MFG / Brand / Vehicle..."
-        )
+        search = st.text_input("Search")
 
-        # =============================
-        # SUGGESTIONS
-        # =============================
-        suggestions = get_suggestions(df, search)
-        for s in suggestions:
-            st.caption(f"🔎 {s}")
-
-        # =============================
-        # SEARCH RESULTS
-        # =============================
-        results = search_parts(df, search)
-
-        # =============================
-        # 🔥 TRACK SEARCH ACTIVITY
-        # =============================
-        user = st.session_state.get("temp_user", "unknown")
-
-        if search:
-            if results.empty:
-                log_event(user, "SEARCH_FAIL", search)
-            else:
-                log_event(user, "SEARCH_SUCCESS", search)
-
-        if results.empty:
-            st.warning("No results found")
+        if not search:
+            st.info("Start typing to search parts")
             return
 
-        # =============================
-        # DISPLAY RESULTS
-        # =============================
+        suggestions = get_suggestions(df, search)
+        for s in suggestions:
+            st.caption(s)
+
+        results = search_parts(df, search)
+
+        user = st.session_state.get("temp_user", "unknown")
+
+        if results.empty:
+            log_event(user, "SEARCH_FAIL", search)
+            st.warning("No results")
+            return
+        else:
+            log_event(user, "SEARCH_SUCCESS", search)
+
         for i, row in results.iterrows():
 
-            col1, col2 = st.columns([5, 1])
+            st.markdown(f"""
+            **{row['Description']}**  
+            {row['Brand']} | {row['Vehicle']}  
+            Price: {row['Price']}
+            """)
 
-            with col1:
-                st.markdown(f"""
-                **{row.get('Description', '')}**  
-                {row.get('Brand', '')} | {row.get('Vehicle', '')}  
-                OE: {row.get('OE Part Number', '')}  
-                MFG: {row.get('Manufacturing Part Number', '')}  
-                Price: {row.get('Price', '')}
-                """)
+            if st.button("Add", key=i):
 
-            with col2:
-                if st.button("Add", key=f"add_{i}"):
-                    add_to_cart(row)
-                    st.success("Added to cart")
+                item = row.to_dict()
+                item["Qty"] = 1
 
-            st.markdown("---")
+                st.session_state.cart.append(item)
 
-    # =============================
-    # CART AREA
-    # =============================
-    with col_cart:
+    with col2:
         render_cart()
+        render_sales_contact()
